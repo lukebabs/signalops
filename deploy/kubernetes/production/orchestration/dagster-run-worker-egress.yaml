@@ -1,0 +1,68 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dagster-run-worker-egress
+  namespace: signalops-orchestration
+  labels:
+    app.kubernetes.io/name: signalops-dagster-run-worker
+    signalops.syncratic.io/stage: production
+spec:
+  # Dagster launches each run as a short-lived worker pod.  The existing
+  # definitions policy selects only the long-lived gRPC user deployment, so
+  # dependency-shadow runs could not reach the dedicated MarketOps database.
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: dagster
+      app.kubernetes.io/instance: dagster
+      app.kubernetes.io/component: run_worker
+      dagster/code-location: signalops-dagster-definitions
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: signalops-data
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: signalops-orchestration
+          podSelector:
+            matchLabels:
+              app: postgresql
+              release: signalops-dagster
+              role: master
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openbao
+      ports:
+        - protocol: TCP
+          port: 8200
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 192.168.2.5/32
+      ports:
+        - protocol: TCP
+          port: 6443
+    - to:
+        - ipBlock:
+            cidr: 10.43.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443

@@ -4,6 +4,9 @@ After=docker.service
 
 [Service]
 Type=oneshot
+EnvironmentFile=-/etc/signalops/marketops-cutover.env
+Environment=SIGNALOPS_SCHEDULE_STATUS_DB_SERVICE=marketops-postgres
+Environment=SIGNALOPS_SCHEDULE_STATUS_DATABASE=marketops
 WorkingDirectory=@WORKDIR@
 Environment=SIGNALOPS_SCHEDULE_STATUS_DIR=@WORKDIR@/runtime/scheduled-jobs
 ExecStart=@WORKDIR@/scripts/marketops_scheduled_job.sh signalops-storage-monitor "Daily 02:00" "America/New_York" docker compose --profile storage-monitoring run --rm storage-monitor

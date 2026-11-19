@@ -34,7 +34,17 @@ func main() {
 
 func run(logger *slog.Logger) error {
 	cfg := config.Load()
-	if strings.TrimSpace(cfg.DatabaseURL) == "" {
+	if err := cfg.ValidateMarketOpsDataBoundary(); err != nil {
+		return err
+	}
+	databaseURL := cfg.DatabaseURL
+	temporalDatabaseURL := cfg.TemporalDatabaseURL
+	if strings.TrimSpace(cfg.MarketOpsDatabaseURL) != "" {
+		databaseURL = cfg.MarketOpsDatabaseURL
+		temporalDatabaseURL = cfg.MarketOpsTemporalDatabaseURL
+		logger.Info("SAF registrar writes are routed to the dedicated MarketOps data boundary")
+	}
+	if strings.TrimSpace(databaseURL) == "" {
 		return errors.New("SIGNALOPS_DATABASE_URL is required")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -50,7 +60,7 @@ func run(logger *slog.Logger) error {
 		return err
 	}
 	defer closeConsumer(consumer)
-	repo, err := postgresstorage.OpenWithTemporal(ctx, cfg.DatabaseURL, cfg.TemporalDatabaseURL)
+	repo, err := postgresstorage.OpenWithTemporal(ctx, databaseURL, temporalDatabaseURL)
 	if err != nil {
 		return err
 	}

@@ -23,9 +23,8 @@ func registerAdministrationSMTPRoutes(mux *http.ServeMux, cfg RouterConfig) {
 		if !requireNotificationSuperAdmin(w, r, cfg) {
 			return
 		}
-		tenant := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
-		if tenant == "" {
-			writeError(w, 400, "tenant_id_required", "tenant_id is required")
+		tenant, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
 			return
 		}
 		settings, err := repo.GetAdministrationSMTPSettings(r.Context(), tenant)
@@ -60,7 +59,11 @@ func registerAdministrationSMTPRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			writeError(w, 400, "invalid_request", "invalid request")
 			return
 		}
-		req.TenantID, req.Host, req.FromEmail = strings.TrimSpace(req.TenantID), strings.TrimSpace(req.Host), strings.TrimSpace(req.FromEmail)
+		tenantID, ok := requireRequestTenant(w, r, req.TenantID)
+		if !ok {
+			return
+		}
+		req.TenantID, req.Host, req.FromEmail = tenantID, strings.TrimSpace(req.Host), strings.TrimSpace(req.FromEmail)
 		if req.TenantID == "" || req.Host == "" || req.Port < 1 || req.Port > 65535 || req.FromEmail == "" {
 			writeError(w, 400, "invalid_settings", "tenant, host, valid port, and from email are required")
 			return

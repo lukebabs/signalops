@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
@@ -205,7 +206,9 @@ func TestAuthEnabledRequiresAdminForPlatformDefinitionWrite(t *testing.T) {
 
 func TestAuthEnabledUsesTokenActorForLifecycleMutation(t *testing.T) {
 	fixture := newTestAuthFixture(t)
-	repo := &fakeQueryRepository{alerts: []storage.AlertLedgerRecord{validAlertRecord()}}
+	alert := validAlertRecord()
+	alert.TenantID = "tenant-local"
+	repo := &fakeQueryRepository{alerts: []storage.AlertLedgerRecord{alert}}
 	router := NewRouter(RouterConfig{Auth: fixture.authCfg, QueryRepository: repo})
 	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleAdmin}}})
 	req := httptest.NewRequest(http.MethodPost, "/v1/alerts/alert-1/acknowledge", bytes.NewBufferString(`{"actor":"body-actor","note":"triaged"}`))
@@ -240,5 +243,125 @@ func TestAuthEnabledRejectsCyberOpsLiveTrafficTenantMismatch(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "tenant_mismatch") {
 		t.Fatalf("body = %s", rec.Body.String())
+	}
+}
+
+func TestAuthEnabledAllowsSubscriberUpgradeInteractionWithoutSignalOpsRole(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	called := false
+	handler := authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		principal, ok := principalFromContext(r.Context())
+		if !ok || principal.TenantID != "tenant-pilot-b" || principal.Subject != "user-123" {
+			t.Fatalf("unexpected principal: %+v authenticated=%t", principal, ok)
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}), fixture.authCfg)
+	token := fixture.token(t, map[string]any{"tenant_id": "tenant-pilot-b", "realm_access": map[string]any{"roles": []string{}}})
+	request := httptest.NewRequest(http.MethodPost, "/v1/marketops/subscriptions/upgrade-interactions", bytes.NewBufferString(`{"interaction_type":"prompt_clicked","required_tier":"professional"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, withBearer(request, token))
+	if recorder.Code != http.StatusAccepted || !called {
+		t.Fatalf("status=%d called=%t body=%s", recorder.Code, called, recorder.Body.String())
+	}
+}
+
+func TestAuthEnabledRejectsMismatchedJSONBodyTenantBeforeHandler(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	called := false
+	handler := authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	}), fixture.authCfg)
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{rolePlatformSuperAdmin}}})
+	request := httptest.NewRequest(http.MethodPost, "/v1/marketops/test", bytes.NewBufferString(`{"tenant_id":"tenant-other"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, withBearer(request, token))
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "tenant_mismatch") {
+		t.Fatalf("body = %s", recorder.Body.String())
+	}
+	if called {
+		t.Fatal("handler was called for a mismatched body tenant")
+	}
+}
+
+func TestTenantProvisionerCannotUseOtherCrossTenantRoute(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	called := false
+	handler := authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	}), fixture.authCfg)
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{roleTenantProvisioner, roleViewer}}})
+	request := httptest.NewRequest(http.MethodPost, "/v1/marketops/test", bytes.NewBufferString(`{"tenant_id":"tenant-other"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, withBearer(request, token))
+	if recorder.Code != http.StatusForbidden || !strings.Contains(recorder.Body.String(), "tenant_mismatch") || called {
+		t.Fatalf("status=%d called=%t body=%s", recorder.Code, called, recorder.Body.String())
+	}
+}
+
+func TestAuthEnabledPreservesJSONBodyAfterTenantInspection(t *testing.T) {
+	fixture := newTestAuthFixture(t)
+	marker := ""
+	handler := authMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			TenantID string `json:"tenant_id"`
+			Marker   string `json:"marker"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode preserved body: %v", err)
+		}
+		if body.TenantID != "tenant-local" {
+			t.Fatalf("body tenant = %q", body.TenantID)
+		}
+		marker = body.Marker
+		w.WriteHeader(http.StatusNoContent)
+	}), fixture.authCfg)
+	token := fixture.token(t, map[string]any{"realm_access": map[string]any{"roles": []string{rolePlatformSuperAdmin}}})
+	request := httptest.NewRequest(http.MethodPost, "/v1/marketops/test", bytes.NewBufferString(`{"tenant_id":"tenant-local","marker":"preserved"}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, withBearer(request, token))
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	if marker != "preserved" {
+		t.Fatalf("marker = %q", marker)
+	}
+}
+
+func TestRequestSubjectBindsToPrincipalAndRejectsImpersonation(t *testing.T) {
+	principal := Principal{Subject: "subject-local", TenantID: "tenant-local"}
+	request := httptest.NewRequest(http.MethodGet, "/v1/test", nil).WithContext(context.WithValue(context.Background(), authContextKey{}, principal))
+
+	subject, err := requestSubject(request, "")
+	if err != nil || subject != "subject-local" {
+		t.Fatalf("subject=%q err=%v", subject, err)
+	}
+	if _, err := requestSubject(request, "subject-other"); err == nil {
+		t.Fatal("expected subject impersonation rejection")
+	}
+}
+
+func TestRequireTenantAdministratorUsesExistingAdminRole(t *testing.T) {
+	operator := Principal{Subject: "operator", TenantID: "tenant-local", Roles: map[string]struct{}{roleOperator: {}}}
+	operatorRequest := httptest.NewRequest(http.MethodGet, "/v1/test", nil).WithContext(context.WithValue(context.Background(), authContextKey{}, operator))
+	operatorRecorder := httptest.NewRecorder()
+	if requireTenantAdministrator(operatorRecorder, operatorRequest) || operatorRecorder.Code != http.StatusForbidden {
+		t.Fatalf("operator status=%d body=%s", operatorRecorder.Code, operatorRecorder.Body.String())
+	}
+
+	admin := Principal{Subject: "admin", TenantID: "tenant-local", Roles: map[string]struct{}{roleAdmin: {}}}
+	adminRequest := httptest.NewRequest(http.MethodGet, "/v1/test", nil).WithContext(context.WithValue(context.Background(), authContextKey{}, admin))
+	adminRecorder := httptest.NewRecorder()
+	if !requireTenantAdministrator(adminRecorder, adminRequest) {
+		t.Fatalf("admin rejected: status=%d body=%s", adminRecorder.Code, adminRecorder.Body.String())
 	}
 }

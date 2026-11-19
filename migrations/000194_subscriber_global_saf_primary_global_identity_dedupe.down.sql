@@ -1,0 +1,1 @@
+DELETE FROM schema_migrations WHERE version = '000194_subscriber_global_saf_primary_global_identity_dedupe';

@@ -1,0 +1,59 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: dagster-definitions-kube-api-egress
+  namespace: signalops-orchestration
+spec:
+  endpointSelector:
+    matchLabels:
+      app.kubernetes.io/name: dagster-user-deployments
+      app.kubernetes.io/instance: signalops-dagster
+      component: user-deployments
+      deployment: signalops-dagster-definitions
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: signalops-orchestration
+            app: postgresql
+            release: signalops-dagster
+            role: master
+      toPorts:
+        - ports:
+            - port: "5432"
+              protocol: TCP
+    - toCIDR:
+        - 192.168.2.5/32
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "6443"
+              protocol: TCP
+    - toEntities:
+        - host
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    - toCIDR:
+        - 10.43.0.1/32
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+    - toEntities:
+        - kube-apiserver
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP
+            - port: "6443"
+              protocol: TCP
+    - toServices:
+        - k8sService:
+            serviceName: kubernetes
+            namespace: default
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

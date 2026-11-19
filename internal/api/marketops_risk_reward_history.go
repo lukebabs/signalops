@@ -9,7 +9,10 @@ import (
 	"github.com/lukebabs/signalops/internal/storage"
 )
 
-const riskRewardMinimumUsableInputs = 5
+// Four core technical inputs are the adaptive minimum used by the worker and
+// global projection. Keep API coverage classification aligned with that
+// contract so newer assets are not reported as insufficient after projection.
+const riskRewardMinimumUsableInputs = 4
 
 type riskRewardOverviewCandidate struct {
 	member   signalOverviewMember
@@ -94,6 +97,16 @@ func riskRewardOverviewPoints(candidates []riskRewardOverviewCandidate, active m
 		dates = dates[:days]
 	}
 	sort.Strings(dates)
+	// The asset list is mutable.  Historical sessions must be evaluated against
+	// the cohort that actually produced evidence for that session, rather than
+	// today's active-list size.  Otherwise expanding the list turns every older
+	// session into a false "Not materialized" gap (for example, 132 historical
+	// rows compared with today's 225 assets).  The newest session is the live
+	// completeness check and therefore remains anchored to the current list.
+	latestDate := ""
+	if len(dates) > 0 {
+		latestDate = dates[len(dates)-1]
+	}
 	points := make([]map[string]any, 0, len(dates))
 	for _, date := range dates {
 		categories := map[string][]signalOverviewMember{"bullish": {}, "neutral": {}, "bearish": {}}
@@ -112,7 +125,11 @@ func riskRewardOverviewPoints(candidates []riskRewardOverviewCandidate, active m
 			sort.Slice(members, func(i, j int) bool { return members[i].Ticker < members[j].Ticker })
 			entries = append(entries, map[string]any{"key": category, "count": len(members), "members": members})
 		}
-		points = append(points, map[string]any{"trade_date": date, "categories": entries, "coverage": map[string]int{"eligible": eligible, "insufficient_inputs": insufficient, "unprocessed": max(0, len(active)-eligible-insufficient)}})
+		expected := len(active)
+		if date < latestDate {
+			expected = len(byDate[date])
+		}
+		points = append(points, map[string]any{"trade_date": date, "categories": entries, "coverage": map[string]int{"eligible": eligible, "insufficient_inputs": insufficient, "unprocessed": max(0, expected-eligible-insufficient)}})
 	}
 	return points
 }

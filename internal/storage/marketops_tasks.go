@@ -11,6 +11,8 @@ type MarketOpsTaskWorkflowRecord struct {
 	CoverageJSON                                                                          []byte
 	StartedAt, CompletedAt                                                                *time.Time
 	CreatedAt, UpdatedAt                                                                  time.Time
+	AssetListID, AssetListFingerprint                                                     string
+	AssetListRevision                                                                     int64
 }
 
 type MarketOpsTaskItemRecord struct {
@@ -22,6 +24,8 @@ type MarketOpsTaskItemRecord struct {
 	ProviderStatus                                                                               *int
 	ResultJSON                                                                                   []byte
 	CreatedAt, UpdatedAt                                                                         time.Time
+	GlobalAssetID, AssetListID                                                                   string
+	AssetListRevision                                                                            int64
 }
 
 type MarketOpsTaskItemFilter struct {

@@ -1,0 +1,1 @@
+DELETE FROM schema_migrations WHERE version = '000193_subscriber_global_saf_primary_cohort_canonical_dedupe';

@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/lukebabs/signalops/internal/appmeta"
 )
 
 func TestSessionExperienceReturnsRegisteredUseCasesInLocalMode(t *testing.T) {
@@ -32,5 +34,22 @@ func TestSessionExperienceReturnsRegisteredUseCasesInLocalMode(t *testing.T) {
 		if profile.AppID == "console" || profile.Permission != "write" || profile.LandingSummary == "" {
 			t.Fatalf("invalid profile: %+v", profile)
 		}
+	}
+}
+
+func TestSessionProfilePermissionHidesNarrativeOpsFromNonAdminGrant(t *testing.T) {
+	profile, ok := appmeta.ProfileByID(appmeta.AppNarrativeOps)
+	if !ok {
+		t.Fatal("NarrativeOps profile is not registered")
+	}
+	cfg := RouterConfig{Auth: AuthConfig{Enabled: true}}
+	viewer := Principal{Access: map[string]string{appmeta.AppNarrativeOps: "write"}}
+	if got := sessionProfilePermission(cfg, viewer, profile); got != "" {
+		t.Fatalf("viewer NarrativeOps permission = %q, want empty", got)
+	}
+	admin := viewer
+	admin.SuperAdmin = true
+	if got := sessionProfilePermission(cfg, admin, profile); got != "write" {
+		t.Fatalf("admin NarrativeOps permission = %q, want write", got)
 	}
 }

@@ -1,0 +1,34 @@
+# Install a rendered copy of this file at /etc/signalops/pgbackrest.conf.
+# It contains operational secrets and must be mode 0640, owned by root:70.
+# Group 70 is the fixed postgres group inside the PostgreSQL 16 Alpine image;
+# no host application account receives read access.
+# Do not commit the rendered file or place it in .env.
+#
+# The role credentials must be short-lived STS credentials for
+# arn:aws:iam::354918409279:role/signalops-postgres-backup.  A refresh process
+# atomically replaces this rendered file before their expiry. It is bind-mounted
+# directly into the container, so each archive command sees the renewed value.
+
+[global]
+repo1-type=s3
+repo1-path=/signalops-postgres
+repo1-s3-bucket=signalops-production-postgres-backups-354918409279-us-east-1
+repo1-s3-region=us-east-1
+repo1-s3-endpoint=s3.amazonaws.com
+repo1-s3-key=<STS_ACCESS_KEY_ID>
+repo1-s3-key-secret=<STS_SECRET_ACCESS_KEY>
+repo1-s3-token=<STS_SESSION_TOKEN>
+repo1-cipher-type=aes-256-cbc
+repo1-cipher-pass=<GENERATED_32_BYTE_OR_LONGER_SECRET>
+repo1-retention-full=12
+repo1-retention-full-type=count
+repo1-retention-diff=35
+start-fast=y
+process-max=2
+archive-async=y
+spool-path=/var/spool/pgbackrest
+log-level-console=info
+
+[signalops]
+pg1-path=/var/lib/postgresql/data
+pg1-user=signalops

@@ -2,7 +2,7 @@
 Description=Run SignalOps MarketOps deferred FMP continuation
 
 [Timer]
-OnCalendar=*-*-* 04:00:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 04:00:00 America/New_York
 Persistent=true
 AccuracySec=1s
 Unit=signalops-marketops-fmp-continuation.service

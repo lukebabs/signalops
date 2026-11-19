@@ -7,6 +7,7 @@ import {
   summarizeSyncraticAskRouteResult,
   detectSyncraticDataQualityWarning,
   classifySyncraticInsightBadge,
+  classifySyncraticNarrativeQuality,
   classifySyncraticAskError,
   messageForSyncraticAskError,
   summarizeSyncraticMaterializationDecision,
@@ -16,6 +17,7 @@ import {
   syncraticDecisionStyle,
   messageForSyncraticMaterializeError,
   SYNCRATIC_ASK_BADGE_LABELS,
+  SYNCRATIC_NARRATIVE_QUALITY_LABELS,
   syncraticSeverityStyle,
   syncraticInsightStatusStyle,
   shortSyncraticId,
@@ -205,6 +207,7 @@ const ASK_METRICS = {
       caps: {},
       response: { confidence: 0.82, evidence_count: 3, citation_count: 2 },
       latency_ms: 1234,
+      response_quality: 'llm_answer',
     },
   },
 };
@@ -224,6 +227,7 @@ describe('summarizeSyncraticAsk (G090)', () => {
     expect(a.responseConfidence).toBeCloseTo(0.82);
     expect(a.responseEvidenceCount).toBe(3);
     expect(a.responseCitationCount).toBe(2);
+    expect(a.responseQuality).toBe('llm_answer');
   });
 
   it('reports present:false for a deterministic insight (no Ask metadata)', () => {
@@ -288,6 +292,67 @@ describe('detectSyncraticDataQualityWarning (G090)', () => {
     ).toBe(false);
     // Symbol present but no warning language → not a data-quality block.
     expect(detectSyncraticDataQualityWarning({ subject_symbol: 'MSFT' })).toBe(false);
+  });
+});
+
+describe('classifySyncraticNarrativeQuality', () => {
+  it('classifies clean AI output from completed Ask metadata', () => {
+    const q = classifySyncraticNarrativeQuality(ASK_METRICS);
+    expect(q.quality).toBe('clean_ai');
+    expect(q.label).toBe('Clean AI narrative');
+  });
+
+  it('classifies deterministic fallback from response_quality', () => {
+    const q = classifySyncraticNarrativeQuality({
+      metrics: {
+        syncratic_ask: {
+          ask_status: 'completed',
+          response_quality: 'deterministic_fallback_meta_answer',
+        },
+      },
+    });
+    expect(q.quality).toBe('deterministic_fallback');
+    expect(q.description).toContain('governed evidence-based narrative');
+  });
+
+  it('classifies persisted prompt meta-output as deterministic fallback even when Ask metadata says completed', () => {
+    const q = classifySyncraticNarrativeQuality({
+      summary: 'They specified to focus on strongest drivers and cite only artifact IDs.',
+      metrics: {
+        syncratic_ask: {
+          ask_status: 'completed',
+          response_quality: 'llm_answer',
+        },
+      },
+    });
+    expect(q.quality).toBe('deterministic_fallback');
+  });
+
+  it('classifies latest unchanged Ask route as skipped', () => {
+    const q = classifySyncraticNarrativeQuality(ASK_METRICS, {
+      contextWindowId: 'synctx_1',
+      syncraticInsightId: 'synins_1',
+      askQueryId: '',
+      askStatus: 'skipped',
+      promptDigest: 'sha256:abc',
+      updated: false,
+      skippedReason: 'unchanged_prompt_and_evidence',
+      promptBuilderVersion: 'marketops.syncratic.ask_prompt.v1',
+    });
+    expect(q.quality).toBe('ask_skipped');
+  });
+
+  it('classifies deterministic context and data-quality blocked states', () => {
+    expect(classifySyncraticNarrativeQuality({ metrics: {} }).quality).toBe('deterministic_context');
+    expect(classifySyncraticNarrativeQuality({ explanation: 'DATA QUALITY WARNING' }).quality).toBe('data_quality_blocked');
+  });
+
+  it('labels all quality states', () => {
+    expect(SYNCRATIC_NARRATIVE_QUALITY_LABELS.clean_ai).toBe('Clean AI narrative');
+    expect(SYNCRATIC_NARRATIVE_QUALITY_LABELS.deterministic_fallback).toBe('Evidence-based narrative');
+    expect(SYNCRATIC_NARRATIVE_QUALITY_LABELS.ask_skipped).toBe('Skipped · unchanged');
+    expect(SYNCRATIC_NARRATIVE_QUALITY_LABELS.data_quality_blocked).toBe('Data-quality blocked');
+    expect(SYNCRATIC_NARRATIVE_QUALITY_LABELS.deterministic_context).toBe('Deterministic context');
   });
 });
 

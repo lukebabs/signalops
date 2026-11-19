@@ -1,0 +1,1 @@
+DROP VIEW IF EXISTS subscriber_gateway_global_saf_daily_cohort_validation;

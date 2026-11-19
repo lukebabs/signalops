@@ -1,0 +1,12 @@
+[Unit]
+Description=SignalOps dedicated MarketOps retention governance dry run
+After=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/signalops/marketops-cutover.env
+Environment=SIGNALOPS_SCHEDULE_STATUS_DB_SERVICE=marketops-postgres
+Environment=SIGNALOPS_SCHEDULE_STATUS_DATABASE=marketops
+WorkingDirectory=@WORKDIR@
+Environment=SIGNALOPS_SCHEDULE_STATUS_DIR=@WORKDIR@/runtime/scheduled-jobs
+ExecStart=@WORKDIR@/scripts/run_marketops_retention_governance.sh @WORKDIR@/.env

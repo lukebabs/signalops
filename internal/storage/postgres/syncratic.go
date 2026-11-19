@@ -63,6 +63,36 @@ ORDER BY updated_at DESC LIMIT $8`, strings.TrimSpace(filter.TenantID), strings.
 	return records, nil
 }
 
+// ListSyncraticContextWindowCurrentness returns only the fields required to
+// calculate insight currentness. The full context-window query includes large
+// evidence arrays and is reserved for explicit detail reads.
+func (r *Repository) ListSyncraticContextWindowCurrentness(ctx context.Context, filter storage.SyncraticContextWindowFilter) ([]storage.SyncraticContextWindowRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+SELECT context_window_id, tenant_id, app_id, domain, use_case, subject_symbol,
+       window_end, context_strategy, context_builder_version, status, updated_at
+FROM syncratic_context_windows
+WHERE ($1='' OR tenant_id=$1) AND ($2='' OR app_id=$2) AND ($3='' OR domain=$3)
+  AND ($4='' OR use_case=$4) AND ($5='' OR subject_symbol=$5)
+  AND ($6='' OR context_strategy=$6) AND ($7='' OR status=$7)
+ORDER BY updated_at DESC LIMIT $8`, strings.TrimSpace(filter.TenantID), strings.TrimSpace(filter.AppID), strings.TrimSpace(filter.Domain), strings.TrimSpace(filter.UseCase), strings.TrimSpace(filter.SubjectSymbol), strings.TrimSpace(filter.ContextStrategy), strings.TrimSpace(filter.Status), clampLimit(filter.Limit))
+	if err != nil {
+		return nil, fmt.Errorf("list syncratic context window currentness: %w", err)
+	}
+	defer rows.Close()
+	records := []storage.SyncraticContextWindowRecord{}
+	for rows.Next() {
+		var record storage.SyncraticContextWindowRecord
+		if err := rows.Scan(&record.ContextWindowID, &record.TenantID, &record.AppID, &record.Domain, &record.UseCase, &record.SubjectSymbol, &record.WindowEnd, &record.ContextStrategy, &record.ContextBuilderVersion, &record.Status, &record.UpdatedAt); err != nil {
+			return nil, fmt.Errorf("scan syncratic context window currentness: %w", err)
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list syncratic context window currentness rows: %w", err)
+	}
+	return records, nil
+}
+
 func (r *Repository) GetSyncraticContextWindow(ctx context.Context, contextWindowID string) (storage.SyncraticContextWindowRecord, error) {
 	return scanSyncraticContextWindow(r.db.QueryRowContext(ctx, syncraticContextWindowSelect+` WHERE context_window_id=$1`, strings.TrimSpace(contextWindowID)))
 }

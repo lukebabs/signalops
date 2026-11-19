@@ -27,6 +27,114 @@ func (r *Repository) GetSignalValidationContract(ctx context.Context, contractID
 	return scanSignalValidationContract(r.db.QueryRowContext(ctx, signalValidationContractSelect+` WHERE contract_id=$1`, strings.TrimSpace(contractID)))
 }
 
+func (r *Repository) GetSignalAssuranceOperationalReadiness(ctx context.Context, tenantID string) (storage.SignalAssuranceOperationalReadinessRecord, error) {
+	tenantID = strings.TrimSpace(tenantID)
+	var record storage.SignalAssuranceOperationalReadinessRecord
+	record.TenantID = tenantID
+	err := r.db.QueryRowContext(ctx, `
+WITH contracts AS (
+  SELECT
+    count(*) FILTER (WHERE active) AS active_contracts,
+    count(*) FILTER (WHERE active AND COALESCE((config->>'research_only')::boolean, false) = false) AS live_contracts,
+    count(*) FILTER (WHERE active AND COALESCE((config->>'research_only')::boolean, false) = true) AS research_contracts
+  FROM signal_validation_contracts
+), assertions AS (
+  SELECT
+    count(*) AS assertions,
+    count(*) FILTER (WHERE evaluation_mode='LIVE') AS live_assertions,
+    count(*) FILTER (WHERE evaluation_mode='RESEARCH') AS research_assertions,
+    max(created_at) AS latest_assertion_at
+  FROM signal_assertions
+  WHERE ($1='' OR tenant_id=$1)
+), materializations AS (
+  SELECT
+    m.materialization_id,
+    m.tenant_id,
+    m.algorithm_id,
+    m.algorithm_version,
+    m.proposed_signal_type,
+    m.materialization_status,
+    m.signal_id,
+    m.completed_at,
+    CASE
+      WHEN lower(trim(COALESCE(p.proposal_payload->>'direction', ''))) IN ('bullish','upside') THEN 'bullish'
+      WHEN lower(trim(COALESCE(p.proposal_payload->>'direction', ''))) IN ('bearish','downside') THEN 'bearish'
+      ELSE ''
+    END AS direction
+  FROM algorithm_signal_materializations m
+  JOIN algorithm_signal_proposals p ON p.tenant_id=m.tenant_id AND p.proposal_id=m.proposal_id
+  WHERE ($1='' OR m.tenant_id=$1)
+    AND m.materialization_status='succeeded'
+    AND m.signal_id IS NOT NULL
+), materialization_counts AS (
+  SELECT
+    count(*) AS succeeded_materializations,
+    count(*) FILTER (WHERE direction <> '') AS directional_materializations,
+    count(*) FILTER (WHERE direction = '') AS non_directional_materializations,
+    count(*) FILTER (WHERE direction <> '' AND EXISTS (
+      SELECT 1 FROM signal_validation_contracts c
+      WHERE c.active=true
+        AND c.signal_type=materializations.proposed_signal_type
+        AND c.direction=materializations.direction
+        AND COALESCE((c.config->>'research_only')::boolean, false)=false
+        AND (c.algorithm IS NULL OR c.algorithm=materializations.algorithm_id)
+        AND (c.algorithm_version IS NULL OR c.algorithm_version=materializations.algorithm_version)
+    )) AS contract_covered_materializations,
+    count(*) FILTER (WHERE direction <> '' AND NOT EXISTS (
+      SELECT 1 FROM signal_validation_contracts c
+      WHERE c.active=true
+        AND c.signal_type=materializations.proposed_signal_type
+        AND c.direction=materializations.direction
+        AND COALESCE((c.config->>'research_only')::boolean, false)=false
+        AND (c.algorithm IS NULL OR c.algorithm=materializations.algorithm_id)
+        AND (c.algorithm_version IS NULL OR c.algorithm_version=materializations.algorithm_version)
+    )) AS contract_blocked_materializations,
+    max(completed_at) AS latest_materialization_at
+  FROM materializations
+)
+SELECT
+  COALESCE(c.active_contracts,0), COALESCE(c.live_contracts,0), COALESCE(c.research_contracts,0),
+  COALESCE(a.assertions,0), COALESCE(a.live_assertions,0), COALESCE(a.research_assertions,0),
+  COALESCE(m.succeeded_materializations,0), COALESCE(m.directional_materializations,0), COALESCE(m.non_directional_materializations,0),
+  COALESCE(m.contract_covered_materializations,0), COALESCE(m.contract_blocked_materializations,0),
+  m.latest_materialization_at, a.latest_assertion_at
+FROM contracts c CROSS JOIN assertions a CROSS JOIN materialization_counts m`, tenantID).Scan(
+		&record.ActiveContractCount,
+		&record.LiveContractCount,
+		&record.ResearchContractCount,
+		&record.AssertionCount,
+		&record.LiveAssertionCount,
+		&record.ResearchAssertionCount,
+		&record.SucceededMaterializationCount,
+		&record.DirectionalMaterializationCount,
+		&record.NonDirectionalMaterializationCount,
+		&record.ContractCoveredMaterializationCount,
+		&record.ContractBlockedMaterializationCount,
+		&record.LatestMaterializationAt,
+		&record.LatestAssertionAt,
+	)
+	if err != nil {
+		return record, fmt.Errorf("get signal assurance operational readiness: %w", err)
+	}
+	record.ReadinessState = "ready_for_prospective_capture"
+	if record.LiveContractCount == 0 {
+		record.ReadinessReasons = append(record.ReadinessReasons, "no active live validation contracts are registered")
+	}
+	if record.SucceededMaterializationCount == 0 {
+		record.ReadinessReasons = append(record.ReadinessReasons, "no succeeded algorithm materializations are available for SAF registration")
+	}
+	if record.NonDirectionalMaterializationCount > 0 {
+		record.ReadinessReasons = append(record.ReadinessReasons, "some succeeded materializations lack bullish/bearish direction and are ineligible for SAF assertions")
+	}
+	if record.ContractBlockedMaterializationCount > 0 {
+		record.ReadinessReasons = append(record.ReadinessReasons, "some directional materializations do not resolve to an active live validation contract")
+	}
+	if len(record.ReadinessReasons) > 0 {
+		record.ReadinessState = "blocked"
+	}
+	return record, nil
+}
+
 func (r *Repository) RegisterSignalAssuranceAssertion(ctx context.Context, registration storage.SignalAssuranceRegistration) (storage.SignalAssertionRecord, bool, error) {
 	if err := validateSignalAssuranceRegistration(registration); err != nil {
 		return storage.SignalAssertionRecord{}, false, err

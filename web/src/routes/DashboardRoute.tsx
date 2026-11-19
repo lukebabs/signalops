@@ -27,7 +27,7 @@ import type { ProviderUsage } from '../types';
 import { useTenant } from '../auth/session';
 import { useAppProfile } from '../apps/AppProfileContext';
 
-type RouteLink = '/runs' | '/raw-events' | '/normalized-events' | '/signals' | '/alerts' | '/insights' | '/sources' | '/pipelines' | '/rules' | '/system' | '/replay';
+type RouteLink = '/runs' | '/raw-events' | '/normalized-events' | '/signals' | '/alerts' | '/insights' | '/sources' | '/pipelines' | '/rules' | '/system' | '/replay' | '/admin/orchestration';
 
 function Panel({ title, linkTo, children }: { title: string; linkTo?: RouteLink; children: ReactNode }) {
   return (
@@ -252,7 +252,8 @@ export function DashboardRoute() {
             )}
             <div className="mt-2 text-xs text-gray-500">
               <Link to="/system" className="hover:underline">System</Link> ·{' '}
-              <Link to="/runs" className="hover:underline">Runs</Link>
+              <Link to="/runs" className="hover:underline">Runs</Link> ·{' '}
+              <Link to="/admin/orchestration" className="hover:underline">Dagster Orchestration</Link>
             </div>
           </Panel>
         </div>

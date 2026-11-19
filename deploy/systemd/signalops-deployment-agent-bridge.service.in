@@ -1,0 +1,15 @@
+[Unit]
+Description=SignalOps deployment-agent Unix socket bridge
+After=network.target
+
+[Service]
+Type=simple
+RuntimeDirectory=signalops
+RuntimeDirectoryMode=0750
+Environment=SIGNALOPS_DEPLOYMENT_AGENT_SOCKET=/run/signalops/deployment-agent.sock
+ExecStart=@AGENT_DIR@/signalops_deployment_agent_bridge.py
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

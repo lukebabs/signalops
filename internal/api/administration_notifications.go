@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/lukebabs/signalops/internal/storage"
@@ -20,9 +19,8 @@ func registerAdministrationNotificationRoutes(mux *http.ServeMux, cfg RouterConf
 			writeError(w, http.StatusForbidden, "super_admin_required", "super-admin access is required")
 			return
 		}
-		tenantID := strings.TrimSpace(r.URL.Query().Get("tenant_id"))
-		if tenantID == "" {
-			writeError(w, 400, "tenant_id_required", "tenant_id is required")
+		tenantID, ok := requireRequestTenant(w, r, r.URL.Query().Get("tenant_id"))
+		if !ok {
 			return
 		}
 		xs, err := repo.ListAdministrationNotifications(r.Context(), storage.AdministrationNotificationFilter{
@@ -56,11 +54,11 @@ func registerAdministrationNotificationRoutes(mux *http.ServeMux, cfg RouterConf
 			writeError(w, 400, "invalid_request", "invalid request")
 			return
 		}
-		if strings.TrimSpace(b.TenantID) == "" {
-			writeError(w, 400, "tenant_id_required", "tenant_id is required")
+		tenantID, ok := requireRequestTenant(w, r, b.TenantID)
+		if !ok {
 			return
 		}
-		known, err := repo.ListAdministrationNotifications(r.Context(), storage.AdministrationNotificationFilter{TenantID: b.TenantID, Subject: p.Subject, IncludeArchived: true, Limit: 200})
+		known, err := repo.ListAdministrationNotifications(r.Context(), storage.AdministrationNotificationFilter{TenantID: tenantID, Subject: p.Subject, IncludeArchived: true, Limit: 200})
 		if err != nil {
 			writeError(w, 500, "query_failed", err.Error())
 			return

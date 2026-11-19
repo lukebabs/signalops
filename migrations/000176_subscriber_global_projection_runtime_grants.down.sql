@@ -1,0 +1,13 @@
+REVOKE SELECT ON subscriber_global_marketops_legacy_parity_source_v3,
+  subscriber_global_marketops_legacy_parity_manifest_entries
+  FROM signalops_subscriber_global_eod;
+REVOKE SELECT, INSERT ON subscriber_global_marketops_legacy_parity_runs,
+  subscriber_global_marketops_legacy_parity_manifest_entries
+  FROM signalops_subscriber_global_eod;
+REVOKE SELECT, INSERT ON subscriber_global_marketops_evidence_runs,
+  subscriber_global_marketops_evidence_records
+  FROM signalops_subscriber_global_eod;
+REVOKE SELECT ON subscriber_global_asset_identity_resolutions,
+  subscriber_gateway_global_canonical_assets
+  FROM signalops_subscriber_global_eod;
+REVOKE signalops_subscriber_global_eod FROM signalops_subscriber_global_eod_runtime;

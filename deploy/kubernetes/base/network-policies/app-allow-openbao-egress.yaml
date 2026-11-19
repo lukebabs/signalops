@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-openbao-egress
+  namespace: signalops-app
+  labels:
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: app
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: signalops-gateway
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openbao
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: openbao
+              component: server
+      ports:
+        - protocol: TCP
+          port: 8200
+        - protocol: TCP
+          port: 8201

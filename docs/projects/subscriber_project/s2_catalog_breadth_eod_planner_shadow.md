@@ -1,0 +1,79 @@
+# Sprint S2 — Catalog Breadth and EOD Planner Shadow
+
+Status: governed reference admission, a provenance-retained ranked top-1,000 snapshot, and the final EOD hot-set shadow plan are complete. The future activation writer remains intentionally deferred to S3, where it can be bound to an authorized tenant-default or private-list membership. No provider collection, scheduler, browser route, tenant projection, or list membership write is enabled.
+
+## Scope delivered
+
+Migration `000092_subscriber_global_eod_planner_shadow` adds four platform-owned, additive records:
+
+- immutable global-asset eligibility decisions;
+- auditable top-1,000 EOD hot-set plan runs;
+- deterministic selected-member records; and
+- deduplicated future coverage-activation requests.
+
+The worker gateway has no grant to any of these tables. The catalog-sync workload may write eligibility decisions; the future global-EOD workload may write shadow plans and activation-request state. Neither is an enabled service.
+
+## Governed eligibility
+
+An `eligible` decision is rejected unless its retained provider evidence confirms all of:
+
+- `country_code = US`;
+- `security_type = common_stock`;
+- `exchange_listed = true`;
+- `provider_eligible = true`; and
+- `is_active = true`.
+
+The decision is immutable. It records its policy version, provider-reference time, reason, evidence, provenance, actor, and decision time. A deferred decision leaves the global asset as `discovered`; an ineligible decision changes it to `ineligible`; only verified evidence promotes it to `eligible`.
+
+The S1 seed has 178 identities, all intentionally `discovered`. Its compatibility metadata is insufficient to declare them US common stocks. S2 therefore does not infer eligibility from ticker, asset type, or historical processing.
+
+## Deterministic hot-set shadow
+
+Before planning, source-scoped compatibility identities are resolved to one deterministic canonical security. `src-massive` is the preferred head when available; source links and immutable observations are preserved under their original IDs. This prevents a symbol present in both `src-massive` and `src-spglobal` from producing duplicate provider pulls or EOD outputs.
+
+The pure planner considers up to 10,000 global candidates, selects only eligible assets with an active source link, then sorts by:
+
+1. lowest active compatibility-source rank;
+2. stable global asset ID.
+
+Capacity is bounded from 1 through 1,000. Every exclusion is counted as `not_eligible`, `no_active_source`, or `capacity`. The persisted plan is always `execution_mode = shadow`; it cannot modify the coverage registry, call Massive, enqueue work, or start a worker.
+
+Before planning, the catalog-sync identity may run the bounded Massive-reference admission import. It records one immutable eligible or ineligible decision per discovered asset; failures remain discovered for a later retry and do not become eligible by inference.
+
+```sh
+go run ./cmd/subscriber-global-catalog-admission --execute \
+  --max-assets 1000 \
+  --actor subscriber-catalog-reference-sync \
+  --correlation-id s2-admission-<change-id>
+```
+
+After migration and future global-EOD workload preflight, an operator may record a plan:)
+
+```sh
+go run ./cmd/subscriber-global-eod-shadow-planner --execute \
+  --capacity 1000 \
+  --actor subscriber-global-eod-reconciler \
+  --correlation-id s2-shadow-<change-id>
+```
+
+A plan with zero selected members is correct until governed reference evidence admits eligible assets.
+
+## Cold activation queue
+
+The S2 queue is global and deduplicated by global asset ID while a request is `queued` or `warming_up`. It preserves the origin kind, tenant/subject/list coordinates where a later authorized S3 membership supplies them, request key, policy version, provenance, and state. No API or browser writer exists in S2. S3 may create an idempotent request only after server-side list authorization and entitlement/quota evaluation succeed.
+
+## Ranking-source decision
+
+The Massive reference catalogue is authoritative for active US common-stock discovery and eligibility, but not for a market-cap-ranked top 1,000 in one bounded request: a live sort=market_cap probe returned an invalid-sort response. The supplied, provenance-retained 2026-08-12 ranking snapshot now defines the ranking input. Alphabetical paging must never be described as “top.”
+
+## S2 exit evidence
+
+1. Reference-import evidence shows every admitted asset has valid US-common-stock provider evidence.
+2. The planner report records candidate, eligible, selected, excluded, and reason counts at capacity 1,000.
+3. Selected ranks and IDs can be replayed exactly from retained input data.
+4. No coverage row or plan is in `enabled` mode; no provider request or scheduled job changed.
+5. Duplicate cold-activation requests coalesce to one global active request when S3 introduces the authorized membership writer.
+
+## Rollback
+
+Do not invoke the manual planner or any future admission import. Existing MarketOps reads, jobs, coverage, and provider behavior remain untouched. Preserve the immutable eligibility and plan evidence; later S3/S4 work must be disabled before any production fallback considers removal.

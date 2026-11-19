@@ -1,0 +1,320 @@
+# K8S production cutover parity plan
+
+Status: active. Production cutover is not approved.
+
+Last updated: 2026-09-13.
+
+## Purpose
+
+This plan turns the broader Kubernetes production-cutover work into an executable parity gate. It keeps Docker Compose/systemd as the production authority while Kubernetes proves the same application, data, scheduler, identity, ingestion, rollback, and observability behavior under controlled staging conditions.
+
+OpenBao HA is not a production blocker by itself. The production requirement is recoverability and control: backup/restore, seal/unseal recovery, audit logging, per-plane policies, CA trust, and rollback. True OpenBao HA remains a resilience-hardening target. The Kubernetes platform target now includes a service mesh; see [K8S service mesh architecture decision](k8s_service_mesh_architecture.md).
+
+## Current executable verifier
+
+Run from the SignalOps workspace:
+
+```bash
+scripts/verify_k8s_production_cutover_readiness.sh
+```
+
+The verifier is intentionally non-cutover. It renders manifests and verifies guardrails; it does not apply production traffic, create production Ingress, enable Kubernetes schedules, invoke providers, or change DNS.
+
+Expected current result:
+
+```text
+signalops_k8s_production_cutover_readiness_report
+production_cutover_allowed=false
+compose_systemd_production_authority=true
+...
+pending_authenticated_keycloak_k8s_parity=false
+pending_authenticated_keycloak_mesh_route_parity=false
+keycloak_oidc_discovery_reachability=verified
+pending_broader_marketops_scheduler_parity=false
+k8s_marketops_scheduler_parity_coverage=complete
+pending_signal_connect_ingestion_shadow=false
+mesh1_istio_control_plane=verified_2026-09-13
+proven_service_mesh_signalops_route_parity=authenticated_keycloak_playwright_2026-09-13
+pending_service_mesh_ingress_dns_cutover_plan=false
+pending_stripe_webhook_k8s_route_parity=false
+proven_k8s_route_load_smoke=health_ready_webhook_2026-09-13
+k8s_capacity_headroom_status=blocked
+k8s_capacity_request_report=available
+k8s_capacity_remediation_plan=prepared_2026-09-13
+pending_capacity_load_validation=true
+```
+
+Use `--strict` only when intentionally checking that final production readiness is not yet satisfied. In the current phase, `--strict` should fail.
+
+## Evidence already closed
+
+| Area | Evidence | Status |
+| --- | --- | --- |
+| K8S-1 namespace/secret foundation | `k8s1_openbao_staging_foundation_evidence_2026-09-12.md` | Closed for staging |
+| K8S-2 app manifests | `k8s2_staging_app_manifest_evidence_2026-09-12.md` | Closed |
+| K8S-2 app shell/proxy parity | `k8s2_staging_app_parity_evidence_2026-09-12.md` | Closed without auth callback |
+| K8S-3 MarketOps CronJob scaffold | `k8s3_marketops_scheduled_jobs_scaffold_2026-09-12.md` | Closed suspended |
+| K8S-3 no-provider CronJob controller smoke | `k8s3_cronjob_unsuspend_resuspend_smoke_2026-09-12.md` | Closed |
+| K8S-3 provider-enabled FMP smoke | `k8s3_provider_cronjob_smoke_2026-09-12.md` | Closed for one asset/no retry |
+| OpenBao CA trust | `k8s3_openbao_ca_trust_gate_2026-09-12.md` | Closed for staging app and MarketOps jobs |
+| Current backup/restore | `pr3_backup_restore_refresh_evidence_2026-09-12.md` | Closed for this cycle |
+| Mesh-0 baseline and implementation plan | `k8s_mesh0_implementation_plan_2026-09-12.md` | Drafted / verifier added |
+| Mesh-3 authenticated SignalOps route | `k8s_mesh3_keycloak_staging_route_blocker_2026-09-13.md` | Closed for staging |
+| Mesh-4 ingress/DNS rollback planning | `k8s_mesh4_ingress_dns_cutover_plan_2026-09-13.md` | Closed as plan/no traffic moved |
+| Stripe webhook K8S route parity | `k8s_stripe_webhook_route_parity_2026-09-13.md` | Closed with synthetic signed checkout event |
+| K8S route/runtime capacity smoke | `k8s_capacity_load_validation_2026-09-13.md` | Partial: route smoke passed; CPU headroom blocked |
+| K8S capacity remediation plan | `k8s_capacity_remediation_plan_2026-09-13.md` | Prepared; no workload changes authorized |
+
+## Remaining parity gates
+
+### Gate A — authenticated K8S app parity
+
+Status: closed for the staging route on 2026-09-13.
+
+Evidence: `scripts/run_k8s_mesh3_keycloak_staging_route_smoke.sh` passed through `https://signalops-staging.syncratic.co` with browser PKCE, Keycloak login, SignalOps `/auth/callback`, and `/v1/session/enrollment`.
+
+Acceptance met:
+
+- authenticated SignalOps route passes through K8S web/gateway and Istio;
+- no production DNS changes;
+- no provider polling;
+- app workloads scale back to zero after the smoke;
+- staging runtime points at the dedicated MarketOps staging data boundary through OpenBao.
+
+Remaining product-route breadth validation for all named pages can be covered by the broader pre-cutover route smoke, but the Keycloak callback blocker itself is closed.
+
+### Gate B — broader MarketOps scheduler parity
+
+The current Kubernetes scheduler evidence proves the controller mechanics and one provider-enabled FMP annual path. It does not yet prove all production MarketOps schedules.
+
+Acceptance:
+
+- dry-run or shadow parity for intraday, daily post-close, warm EOD, SRI refresh, SRI holdings refresh, SAF benchmark/projection, FMP annual, operations monitor, and retention governance;
+- each job writes scheduler status to the dedicated MarketOps operations tables;
+- every CronJob keeps `concurrencyPolicy: Forbid`, explicit deadline/history limits, and bounded retry posture;
+- provider-enabled tests require named approval and one-job/no-retry constraints until production cutover is approved;
+- Docker/systemd remains authoritative until the full scheduler parity report is accepted.
+
+
+### Scheduler parity coverage report — 2026-09-13
+
+A source-controlled parity verifier now compares the production Admin scheduler catalog with the staged Kubernetes CronJob catalog and the Kubernetes job-runner entrypoint. Current result:
+
+```text
+signalops_k8s_marketops_scheduler_parity_coverage_report
+status=partial
+admin_marketops_jobs=12
+k8s_cronjobs=5
+k8s_entrypoint_jobs=5
+fully_represented=marketops-fmp-annual-financial,marketops-intraday,marketops-operations-monitor,marketops-retention-governance,marketops-sri-holdings-refresh,marketops-sri-refresh
+missing_cronjob=marketops-daily-postclose,marketops-fmp-continuation,marketops-postclose-recovery,marketops-risk-reward,marketops-task-retry,marketops-warm-eod
+missing_entrypoint=marketops-daily-postclose,marketops-fmp-continuation,marketops-postclose-recovery,marketops-risk-reward,marketops-task-retry,marketops-warm-eod
+extra_cronjob=marketops-saf-benchmark
+provider_polling=false
+production_cutover_allowed=false
+```
+
+Recommended porting order:
+
+1. `marketops-operations-monitor` and `marketops-retention-governance`, because they are operational/non-provider and prove control-plane hygiene.
+2. `marketops-task-retry`, `marketops-postclose-recovery`, and `marketops-risk-reward`, because they close the post-close recovery/completion loop without introducing a broad provider surface.
+3. `marketops-warm-eod` and `marketops-daily-postclose`, because they are the production-critical EOD pipelines and require the most careful provider/data-boundary validation.
+4. `marketops-fmp-continuation`, because it is a weekend/continuation workflow that should be validated after the base EOD loop is proven.
+
+The verifier is intentionally non-cutover and makes the gap explicit instead of treating the existing five staged CronJobs as full production scheduler parity.
+
+
+### Scheduler parity operational slice — 2026-09-13
+
+Closed the first low-risk scheduler-porting slice by adding suspended Kubernetes CronJobs and entrypoint support for:
+
+- `marketops-operations-monitor`
+- `marketops-retention-governance`
+
+Both are K8s-staging dry-run only until production scheduler cutover is separately approved. The operation monitor path validates dedicated primary/temporal DB reachability and scheduler-status table access. The retention path executes the existing `signalops-retention-governor` binary for `subscriber.user_activity_180d` on `tenant-local` and `tenant-pilot-b` without enforcement.
+
+Passing evidence:
+
+```text
+signalops_k8s_marketops_non_provider_dry_run_job_verified
+job_id=marketops-operations-monitor
+dry_run=true
+scheduler_status_parity=verified
+provider_polling=false
+production_cutover_allowed=false
+
+signalops_k8s_marketops_non_provider_dry_run_job_verified
+job_id=marketops-retention-governance
+dry_run=true
+scheduler_status_parity=verified
+provider_polling=false
+production_cutover_allowed=false
+```
+
+Coverage after this slice:
+
+```text
+fully_represented=marketops-fmp-annual-financial,marketops-intraday,marketops-operations-monitor,marketops-retention-governance,marketops-sri-holdings-refresh,marketops-sri-refresh
+missing_cronjob=marketops-daily-postclose,marketops-fmp-continuation,marketops-postclose-recovery,marketops-risk-reward,marketops-task-retry,marketops-warm-eod
+missing_entrypoint=marketops-daily-postclose,marketops-fmp-continuation,marketops-postclose-recovery,marketops-risk-reward,marketops-task-retry,marketops-warm-eod
+```
+
+### Gate C — Signal-Connect ingestion shadow
+
+Signal-Connect is part of SignalOps and should move as its own ingestion plane inside the same SaaS platform architecture.
+
+Acceptance:
+
+- Signal-Connect ingress/webhook endpoints run behind staging ingress with rate limits and backpressure;
+- accepted raw events and outbox/DLQ behavior match contract expectations;
+- Connect cannot read app, identity, MarketOps, or CyberOps secrets;
+- no production detector or MarketOps consumer switches until shadow evidence passes.
+
+### Gate D — service mesh, ingress/DNS, and rollback proposal
+
+Mesh-0 has a live baseline in [Mesh-0 implementation plan — 2026-09-12](k8s_mesh0_implementation_plan_2026-09-12.md). Mesh-1 closed on 2026-09-13 with Istio selected and verified: `istio-base` and `istiod` are deployed, `GatewayClass/istio` is accepted, and `istio-system/public-ingress` is programmed at `192.168.2.233`. Docker Traefik remains the public rollback/reference edge for SignalOps until SignalOps route parity and cutover are separately approved.
+
+This gate prepares but does not execute the traffic move.
+
+Acceptance:
+
+- target Gateway API / Istio ingress mode and hostnames documented;
+- unauthenticated SignalOps staging route parity is proven through Istio;
+- Keycloak OIDC discovery/JWKS endpoints are reachable without WAF challenge, and redirect URIs/web origins include the target K8S hostnames;
+- Stripe webhook endpoint behavior is validated for the K8S route;
+- rollback path returns traffic from mesh/Gateway API to Docker Compose/systemd without data loss;
+- backup/restore evidence is current;
+- cutover can be performed as a small timed window with clear abort criteria.
+
+### Gate E — capacity/load validation
+
+Acceptance:
+
+- measured gateway p95/p99 latency under target concurrent sessions;
+- database connection saturation measured with pool caps and PgBouncer/connection-pooling decision;
+- scheduler queue lag measured under MarketOps jobs;
+- Syncratic Ask / AI Gateway throughput and timeout behavior measured;
+- provider-rate ceilings documented and protected.
+
+Current capacity attribution is now source-controlled through `scripts/report_k8s_capacity_requests.sh` and documented in [K8S capacity remediation plan — 2026-09-13](k8s_capacity_remediation_plan_2026-09-13.md). The current cluster has one node, 16,000m allocatable CPU, and 17,665m requested CPU. Production authority transfer remains blocked until CPU headroom is remediated by added worker capacity, approved cleanup of stale smoke/rehearsal namespaces, request right-sizing, or dedicated SignalOps node capacity.
+
+## Current conclusion
+
+Kubernetes migration is past scaffold-only. It has real staging app, secret, image, data, scheduler, service-mesh, authenticated Keycloak route evidence, Signal-Connect shadow evidence, and raw-worker processing-shadow evidence. Broader MarketOps scheduler parity is complete at the suspended-workload and dry-run evidence level. The next production-readiness targets are K3s CPU headroom remediation and a separately approved production authority transfer. Ingress/DNS rollback planning and Stripe webhook parity through the K8S route are now closed as non-cutover staging gates.
+
+Until those gates close, `production_cutover_allowed=false` remains the correct state and Docker Compose/systemd remains the live production authority.
+
+## Verifier evidence — 2026-09-12
+
+The non-cutover verifier was added and executed successfully after correcting the base scaffold verifier so it distinguishes base resources from intentional staging overlays.
+
+The corrections were:
+
+- exclude staging NetworkPolicies from the base K8S-1 policy count;
+- exclude staging ConfigMaps from the base K8S-1 policy ConfigMap count;
+- exclude staging pods from the base K8S-1 zero-workload-pod assertion.
+
+This preserves the original K8S-1 contract while allowing later K8S-2/K8S-3 staging resources to coexist in the same namespace set.
+
+Passing report:
+
+```text
+signalops_k8s_production_cutover_readiness_report
+production_cutover_allowed=false
+compose_systemd_production_authority=true
+k8s_base_scaffold=verified
+k8s_app_manifest_guard=verified
+k8s_marketops_jobs_manifest_guard=verified
+k8s_marketops_data_manifest_guard=verified
+openbao_ca_trust=verified
+backup_restore_current=verified_2026-09-12
+proven_app_parity=port_forward_unauthenticated+mesh_authenticated_https
+proven_scheduler_parity=no_provider_and_one_provider_fmp_smoke
+pending_authenticated_keycloak_k8s_parity=false
+pending_authenticated_keycloak_mesh_route_parity=false
+keycloak_oidc_discovery_reachability=verified
+pending_broader_marketops_scheduler_parity=false
+k8s_marketops_scheduler_parity_coverage=complete
+pending_signal_connect_ingestion_shadow=false
+mesh1_istio_control_plane=verified_2026-09-13
+proven_service_mesh_signalops_route_parity=authenticated_keycloak_playwright_2026-09-13
+pending_service_mesh_ingress_dns_cutover_plan=false
+pending_stripe_webhook_k8s_route_parity=false
+proven_k8s_route_load_smoke=health_ready_webhook_2026-09-13
+k8s_capacity_headroom_status=blocked
+k8s_capacity_request_report=available
+k8s_capacity_remediation_plan=prepared_2026-09-13
+pending_capacity_load_validation=true
+```
+
+## Scheduler parity task-retry/warm-EOD slice — 2026-09-13
+
+Status: source-prepared and manifest-verified; live K8S one-shot dry-run evidence follows image publication.
+
+This slice adds K8S-staging representation for two more Admin MarketOps jobs:
+
+- `marketops-task-retry` — dry-run-only handler counts due tactical retries in the dedicated staging MarketOps primary and records scheduler status parity. It does not execute tactical valuation or provider work.
+- `marketops-warm-eod` — dry-run-only handler verifies the warm EOD cohort source in the dedicated staging MarketOps primary and records scheduler status parity. It does not invoke Massive and does not materialize EOD evidence.
+
+The staging CronJobs remain suspended with `concurrencyPolicy: Forbid`, OpenBao runtime injection, GHCR private image pull, and `production-cutover-allowed=false`.
+
+Current parity after this source slice: 8 of 12 Admin MarketOps jobs are represented by both a K8S CronJob and an entrypoint handler. The remaining missing jobs are `marketops-daily-postclose`, `marketops-fmp-continuation`, `marketops-postclose-recovery`, and `marketops-risk-reward`.
+
+### Task-retry/warm-EOD live dry-run evidence status
+
+Closed on 2026-09-13. Commit `de5c983` is pushed, and the private GHCR job-runner image is published as `de5c9833fd04` plus `staging`. The dedicated staging schema bootstrap passed with `tables=13`.
+
+Live one-shot K8S dry-run evidence passed for both `marketops-task-retry` and `marketops-warm-eod` against the dedicated staging MarketOps primary/temporal services. Both runs verified DB-backed scheduler status parity and preserved `provider_polling=false` and `production_cutover_allowed=false`. Detailed evidence is captured in [K8S-3 task-retry and warm-EOD dry-run evidence — 2026-09-13](k8s3_task_retry_warm_eod_dry_run_evidence_2026-09-13.md).
+
+This was the remaining scheduler parity gap at the end of the task-retry/warm-EOD slice; it was superseded later on 2026-09-13 by full MarketOps scheduler parity completion.
+
+## MarketOps scheduler parity completion — 2026-09-13
+
+The K8S scheduler parity gate is closed for workload representation and staging dry-run execution. All 12 Admin MarketOps scheduled jobs now have suspended K8S CronJobs and matching job-runner entrypoints. The intentional extra `marketops-saf-benchmark` CronJob remains outside the Admin scheduler catalog.
+
+Evidence is recorded in [K8S-3 MarketOps scheduler parity complete — 2026-09-13](k8s3_marketops_scheduler_parity_complete_2026-09-13.md). The production-readiness report now returns `k8s_marketops_scheduler_parity_coverage=complete` with no missing CronJobs or entrypoints.
+
+This does not by itself transfer production authority. The K3s CronJobs remain suspended and Docker Compose/systemd remains live scheduler authority until a named production scheduler cutover approves unsuspending K3s CronJobs and disabling equivalent systemd timers in a controlled rollback window.
+
+## Signal-Connect shadow scaffold — 2026-09-13
+
+K8S-4 has started. The concrete Go Signal-Connect workers now have a replicas-zero staging scaffold in `signalops-connect`: `signalops-connect-persister` and `signalops-connect-outbox`. The manifests are verified with OpenBao runtime injection, no Services/Ingress, no committed Secrets, and `production-cutover-allowed=false`.
+
+This closes the source/manifest guard, private GHCR publication, namespace pull smoke, dormant in-cluster apply, and placeholder OpenBao runtime isolation for the Connect worker shape. The Connect worker image is published as `ghcr.io/syncratic-inc/signalops-connect-k8s-worker:347dc8d20d07` and `staging`; `signalops-connect-persister` and `signalops-connect-outbox` are applied with `0/0` replicas. `pending_signal_connect_ingestion_shadow=false` remains correct until approved non-production `.svc` runtime values are installed, one bounded scale-to-one shadow smoke proves broker/database behavior, and the workloads scale back to zero. Evidence is tracked in [K8S-4 Signal-Connect shadow scaffold — 2026-09-13](k8s4_signal_connect_shadow_scaffold_2026-09-13.md).
+
+
+### K8S-4 Signal-Connect shadow smoke closed — 2026-09-13
+
+Signal-Connect ingestion shadow is closed for the two Go Connect workers. A staging-only internal Redpanda broker was applied in `signalops-data`, standard `kubernetes-staging` topics were bootstrapped, non-production Connect runtime values were written through OpenBao with cross-plane denial, and `signalops-connect-persister` plus `signalops-connect-outbox` each completed a bounded sequential scale-to-one smoke before returning to zero replicas. The readiness report now shows `pending_signal_connect_ingestion_shadow=false`. The Python `raw-worker` migration gate is now closed separately; production cutover remains blocked by capacity/load validation and explicit authority transfer.
+
+
+### K8S-5 raw-worker scaffold — 2026-09-13
+
+The Python `raw-worker` migration is closed through a bounded one-message processing shadow. The staging Deployment `signalops-raw-worker` is applied in `signalops-connect` with `replicas=0`, private GHCR image `ghcr.io/syncratic-inc/signalops-python-worker:staging`, the staging Redpanda broker endpoint, bounded `SIGNALOPS_WORKER_MAX_MESSAGES=1`, and `production-cutover-allowed=false`. Image publication, pull smoke, and deterministic processing smoke are verified. The processing smoke emitted `marketops.dsm.accumulation` to `signalops.kubernetes-staging.signal.v1` and restored replicas to zero. Evidence is tracked in [K8S-5 raw-worker processing shadow — 2026-09-13](k8s5_raw_worker_processing_shadow_2026-09-13.md).
+
+
+### K8S-5 raw-worker processing shadow closed — 2026-09-13
+
+The Python `raw-worker` completed a bounded K3s staging processing smoke. A deterministic normalized MarketOps event was produced into the internal staging Redpanda broker, `signalops-raw-worker` was scaled to one, the worker emitted `marketops.dsm.accumulation` to the staging signal topic, and the Deployment returned to zero replicas. The initial fixture drift was corrected by using the governed `market_data.massive` source adapter expected by the DSM detector, while retaining synthetic-smoke provenance. The readiness report now shows `pending_raw_worker_processing_shadow=false`.
+
+
+### Mesh-4 ingress/DNS rollback planning verified — 2026-09-13
+
+The service-mesh production ingress/DNS planning gate is now documented and verifier-backed. It defines the intended `signalops.syncratic.io` move to Istio Gateway API, keeps Docker Traefik/Compose as rollback authority, and blocks accidental production hostname binding in the staging mesh-route overlay. This closes the planning gap only. Stripe webhook K8S route parity is also closed; production traffic movement still requires capacity/load validation and explicit production authority transfer approval.
+
+### K8S production app/data package prepared — 2026-09-13
+
+The production migration package now has explicit app and data overlays. The target architecture is Kubernetes-native database service DNS backed by retained Longhorn PVCs, OpenBao-injected database bootstrap secrets, OpenBao-injected app runtime secrets, then Istio traffic authority transfer. Docker-hosted production databases remain rollback/fallback infrastructure, not the default generated K8s runtime target. Evidence is recorded in [K8S production app/data migration package — 2026-09-13](k8s_production_app_data_migration_package_2026-09-13.md).
+
+The readiness report now distinguishes these final gates:
+
+```text
+k8s_production_data_package=verified
+k8s_production_app_cutover_package=verified
+pending_production_app_runtime_openbao=true
+pending_production_data_runtime_openbao=true
+pending_production_database_restore_or_replication=true
+pending_production_traffic_authority_transfer=true
+```
+
+Production cutover remains unauthorized until those gates close under named approval.

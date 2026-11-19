@@ -1,0 +1,4 @@
+DROP POLICY IF EXISTS subscriber_checkout_sessions_stripe_reconcile_update ON subscriber_checkout_sessions;
+DROP POLICY IF EXISTS subscriber_checkout_sessions_stripe_reconcile_select ON subscriber_checkout_sessions;
+DROP POLICY IF EXISTS subscriber_checkout_sessions_tenant_isolation ON subscriber_checkout_sessions;
+DROP TABLE IF EXISTS subscriber_checkout_sessions;

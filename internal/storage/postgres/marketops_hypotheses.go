@@ -183,8 +183,8 @@ func clampHypothesisEvaluationLimit(limit int) int {
 	if limit <= 0 {
 		return 50
 	}
-	if limit > 600 {
-		return 600
+	if limit > 2000 {
+		return 2000
 	}
 	return limit
 }

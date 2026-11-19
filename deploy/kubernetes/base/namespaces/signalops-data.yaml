@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: signalops-data
+  labels:
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: data
+  annotations:
+    signalops.syncratic.io/responsibility: "Database/broker access boundaries, PgBouncer, backup/restore jobs, and data-plane helpers."

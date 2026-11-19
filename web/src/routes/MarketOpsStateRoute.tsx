@@ -45,6 +45,10 @@ import {
   type MarketOpsHypothesisEvaluationStateView,
 } from "../lib/marketopsState";
 import { useTenant } from "../auth/session";
+import {
+  MarketOpsWatchlistSelector,
+  useMarketOpsWatchlistContext,
+} from "../components/MarketOpsWatchlistContext";
 import { AssetOptionsPanel } from "./MarketOpsAssetsRoute";
 import {
   activeMarketOpsIndicators,
@@ -83,6 +87,7 @@ const DOMAIN_BUCKETS = [
 
 export function MarketOpsStateRoute() {
   const TENANT_ID = useTenant();
+  const watchlist = useMarketOpsWatchlistContext();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const search = useSearch({ strict: false }) as {
@@ -94,6 +99,8 @@ export function MarketOpsStateRoute() {
   };
 
   const symbol = (search.symbol || "").trim().toUpperCase();
+  const selectedSymbolInScope =
+    !watchlist.available || !symbol || watchlist.tickerSet.has(symbol);
   const requestedTab = (search.tab || "overview") as Tab;
   const tab: Tab = (TABS as readonly string[]).includes(requestedTab)
     ? requestedTab
@@ -114,16 +121,21 @@ export function MarketOpsStateRoute() {
   // State window for the selected symbol.
   const statesQ = useMarketOpsStates({
     tenant_id: TENANT_ID,
-    symbol: symbol || undefined,
+    symbol: selectedSymbolInScope ? symbol || undefined : "__watchlist_scope_miss__",
     limit: 50,
   });
   // Market State resolves prices and autocomplete from the same universal registry.
   const quotesQ = useMarketOpsAssetQuotes(TENANT_ID, "all_active");
   const quoteByTicker = new Map(
-    (quotesQ.data?.quotes ?? []).map((quote) => [
-      quote.ticker.toUpperCase(),
-      quote,
-    ]),
+    (quotesQ.data?.quotes ?? [])
+      .filter(
+        (quote) =>
+          !watchlist.available || watchlist.tickerSet.has(quote.ticker.toUpperCase()),
+      )
+      .map((quote) => [
+        quote.ticker.toUpperCase(),
+        quote,
+      ]),
   );
   const selectedQuote = symbol ? quoteByTicker.get(symbol) : undefined;
   const assetsQ = useMarketOpsAssets({
@@ -133,11 +145,18 @@ export function MarketOpsStateRoute() {
     limit: 200,
   });
   const onboardedAssets = (assetsQ.data?.assets ?? [])
+    .filter(
+      (asset) =>
+        !watchlist.available || watchlist.tickerSet.has(asset.ticker.toUpperCase()),
+    )
     .slice()
     .sort((a, b) => a.ticker.localeCompare(b.ticker));
-  const states = (statesQ.data?.market_states ?? []).map(
-    summarizeMarketOpsState,
-  );
+  const states = (statesQ.data?.market_states ?? [])
+    .filter(
+      (state) =>
+        !watchlist.available || watchlist.tickerSet.has(state.symbol.toUpperCase()),
+    )
+    .map(summarizeMarketOpsState);
   // Newest revision per session; overall newest first by session then as_of.
   const sessionStates = dedupeNewestRevision(states);
   const sessionDates = sessionStates.map((s) => dateOnly(s.sessionDate));
@@ -153,7 +172,7 @@ export function MarketOpsStateRoute() {
     ? selectPriorState(states, selectedState)
     : null;
 
-  if (!symbol) {
+  if (!symbol || !selectedSymbolInScope) {
     return (
       <div className="space-y-3">
         <Header
@@ -293,6 +312,8 @@ function Header({
           analyst-watchlist assets where onboarded.
         </p>
       </div>
+      <div className="flex items-center gap-2">
+        <MarketOpsWatchlistSelector />
       <button
         type="button"
         onClick={onRefresh}
@@ -302,6 +323,7 @@ function Header({
       >
         <RotateCw size={14} className={refreshing ? "animate-spin" : ""} />
       </button>
+      </div>
     </div>
   );
 }

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: signalops-cyberops
+  labels:
+    app.kubernetes.io/part-of: signalops
+    signalops.syncratic.io/plane: cyberops
+  annotations:
+    signalops.syncratic.io/responsibility: "CyberOps normalizers, detectors, and CyberOps-specific materializers."

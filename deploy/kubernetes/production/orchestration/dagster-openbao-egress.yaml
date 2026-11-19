@@ -1,0 +1,68 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dagster-definitions-egress
+  namespace: signalops-orchestration
+  labels:
+    app.kubernetes.io/name: signalops-dagster-definitions
+    signalops.syncratic.io/stage: shadow
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: dagster-user-deployments
+      app.kubernetes.io/instance: signalops-dagster
+      component: user-deployments
+      deployment: signalops-dagster-definitions
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openbao
+      ports:
+        - protocol: TCP
+          port: 8200
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: signalops-data
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: signalops-orchestration
+          podSelector:
+            matchLabels:
+              app: postgresql
+              release: signalops-dagster
+              role: master
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # The scheduler submits child Jobs through the exact in-cluster API endpoint.
+    - to:
+        - ipBlock:
+            cidr: 192.168.2.5/32
+      ports:
+        - protocol: TCP
+          port: 6443
+        - protocol: TCP
+          port: 443
+    - to:
+        - ipBlock:
+            cidr: 10.43.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443

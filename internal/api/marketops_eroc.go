@@ -25,6 +25,7 @@ type erocRow struct {
 	Confirmed    bool           `json:"confirmed"`
 	ModelVersion string         `json:"model_version"`
 	Trace        map[string]any `json:"trace"`
+	DataScope    string         `json:"data_scope"`
 }
 
 func erocRows(rows []storage.MarketOpsValuationResultRecord) []erocRow {
@@ -32,25 +33,35 @@ func erocRows(rows []storage.MarketOpsValuationResultRecord) []erocRow {
 	for _, row := range rows {
 		trace := map[string]any{}
 		_ = json.Unmarshal(row.ResultJSON, &trace)
-		out = append(out, erocRow{Ticker: row.Symbol, TradeDate: row.SessionDate.Format("2006-01-02"), Score: row.Score, State: row.Classification, Confirmed: row.Eligible, ModelVersion: row.ModelVersion, Trace: trace})
+		out = append(out, erocRow{Ticker: row.Symbol, TradeDate: row.SessionDate.Format("2006-01-02"), Score: row.Score, State: row.Classification, Confirmed: row.Eligible, ModelVersion: row.ModelVersion, Trace: trace, DataScope: row.TenantID})
 	}
 	return out
 }
 func enrichEROCOptionsFlow(ctx context.Context, repo storage.QueryRepository, tenant string, rows []erocRow) error {
 	reader, ok := any(repo).(erocOptionsDistributionReader)
-	if !ok { return nil }
+	if !ok {
+		return nil
+	}
 	for index := range rows {
 		distributions, err := reader.ListMarketOpsOptionsDistributions(ctx, storage.MarketOpsOptionsDistributionFilter{TenantID: tenant, Symbol: rows[index].Ticker, WindowName: "10_trade_days", Limit: 10})
-		if err != nil { return err }
+		if err != nil {
+			return err
+		}
 		for _, distribution := range distributions {
-			if distribution.TradeDate.UTC().Format("2006-01-02") != rows[index].TradeDate { continue }
+			if distribution.TradeDate.UTC().Format("2006-01-02") != rows[index].TradeDate {
+				continue
+			}
 			trace := rows[index].Trace
 			trace["total_option_volume"] = distribution.TotalCallVolume + distribution.TotalPutVolume
 			if distribution.TotalCallVolume > 0 {
 				ratio := float64(distribution.TotalPutVolume) / float64(distribution.TotalCallVolume)
 				trace["put_call_volume_ratio"] = ratio
-				if distribution.TotalCallVolume + distribution.TotalPutVolume >= 1000 {
-					if ratio < .30 { trace["options_flow_extreme"] = "call_volume_extreme" } else if ratio > 1.20 { trace["options_flow_extreme"] = "put_volume_extreme" }
+				if distribution.TotalCallVolume+distribution.TotalPutVolume >= 1000 {
+					if ratio < .30 {
+						trace["options_flow_extreme"] = "call_volume_extreme"
+					} else if ratio > 1.20 {
+						trace["options_flow_extreme"] = "put_volume_extreme"
+					}
 				}
 			}
 			break
@@ -59,21 +70,76 @@ func enrichEROCOptionsFlow(ctx context.Context, repo storage.QueryRepository, te
 	return nil
 }
 
-func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
-	read := func(r *http.Request) ([]storage.MarketOpsValuationResultRecord, error) {
-		repo, ok := any(cfg.QueryRepository).(storage.MarketOpsValuationRepository)
-		if !ok {
-			return nil, errEROCAvailable{}
+func authorizedEROCTickers(context subscriberWatchlistContext, requested string) []string {
+	symbol := strings.ToUpper(strings.TrimSpace(requested))
+	if symbol != "" {
+		if _, allowed := context.Tickers[symbol]; allowed {
+			return []string{symbol}
 		}
-		return repo.ListMarketOpsValuationResults(r.Context(), storage.MarketOpsValuationFilter{TenantID: strings.TrimSpace(r.PathValue("tenant_id")), Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), AlgorithmID: erocAlgorithmID, Limit: 5000})
+		return []string{}
 	}
-	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/eroc", func(w http.ResponseWriter, r *http.Request) {
-		rows, err := read(r)
+	symbols := make([]string, 0, len(context.Tickers))
+	for ticker := range context.Tickers {
+		symbols = append(symbols, ticker)
+	}
+	return symbols
+}
+
+func loadEROCRows(w http.ResponseWriter, r *http.Request, cfg RouterConfig) ([]storage.MarketOpsValuationResultRecord, subscriberWatchlistContext, bool) {
+	tenantID, ok := requireRequestTenant(w, r, r.PathValue("tenant_id"))
+	if !ok {
+		return nil, subscriberWatchlistContext{}, false
+	}
+	watchlistContext, ok := requireSubscriberWatchlistContext(w, r, cfg, tenantID)
+	if !ok {
+		return nil, subscriberWatchlistContext{}, false
+	}
+	if subscriberWatchlistContextEnabled(cfg, tenantID) {
+		globalReader, supported := any(cfg.QueryRepository).(storage.SubscriberGlobalEROCRepository)
+		if !supported {
+			writeError(w, http.StatusServiceUnavailable, "global_eroc_unavailable", "global EROC projection is unavailable")
+			return nil, subscriberWatchlistContext{}, false
+		}
+		rows, err := globalReader.ListSubscriberGlobalEROCResults(r.Context(), authorizedEROCTickers(watchlistContext, r.URL.Query().Get("symbol")), 5000)
 		if err != nil {
-			writeEROCErr(w, err)
+			writeError(w, http.StatusInternalServerError, "query_failed", "failed to load global EROC results")
+			return nil, subscriberWatchlistContext{}, false
+		}
+		return rows, watchlistContext, true
+	}
+	repo, supported := any(cfg.QueryRepository).(storage.MarketOpsValuationRepository)
+	if !supported {
+		writeEROCErr(w, errEROCAvailable{})
+		return nil, subscriberWatchlistContext{}, false
+	}
+	rows, err := repo.ListMarketOpsValuationResults(r.Context(), storage.MarketOpsValuationFilter{TenantID: tenantID, Symbol: strings.TrimSpace(r.URL.Query().Get("symbol")), AlgorithmID: erocAlgorithmID, Limit: 5000})
+	if err != nil {
+		writeEROCErr(w, err)
+		return nil, subscriberWatchlistContext{}, false
+	}
+	return rows, watchlistContext, true
+}
+
+func filterEROCRows(rows []erocRow, context subscriberWatchlistContext, enabled bool) []erocRow {
+	if !enabled {
+		return rows
+	}
+	visible := rows[:0]
+	for _, row := range rows {
+		if _, allowed := context.Tickers[strings.ToUpper(row.Ticker)]; allowed {
+			visible = append(visible, row)
+		}
+	}
+	return visible
+}
+
+func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
+	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/eroc", func(w http.ResponseWriter, r *http.Request) {
+		rows, watchlistContext, ok := loadEROCRows(w, r, cfg)
+		if !ok {
 			return
 		}
-		all := erocRows(rows)
+		all := filterEROCRows(erocRows(rows), watchlistContext, subscriberWatchlistContextEnabled(cfg, strings.TrimSpace(r.PathValue("tenant_id"))))
 		latest := map[string]erocRow{}
 		for _, row := range all {
 			if current, ok := latest[row.Ticker]; !ok || row.TradeDate > current.TradeDate {
@@ -89,12 +155,15 @@ func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			return
 		}
 		sort.Slice(out, func(i, j int) bool { return out[i].Score > out[j].Score })
-		writeJSON(w, http.StatusOK, map[string]any{"results": out, "research_only": true})
+		response := map[string]any{"results": out, "research_only": true}
+		if subscriberWatchlistContextEnabled(cfg, strings.TrimSpace(r.PathValue("tenant_id"))) {
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
 	mux.HandleFunc("GET /v1/tenants/{tenant_id}/marketops/eroc/overview", func(w http.ResponseWriter, r *http.Request) {
-		rows, err := read(r)
-		if err != nil {
-			writeEROCErr(w, err)
+		rows, watchlistContext, ok := loadEROCRows(w, r, cfg)
+		if !ok {
 			return
 		}
 		days := 10
@@ -105,7 +174,8 @@ func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
 		}
 		cutoff := time.Now().UTC().AddDate(0, 0, -days*3)
 		groups := map[string]map[string][]erocRow{}
-		for _, row := range erocRows(rows) {
+		all := filterEROCRows(erocRows(rows), watchlistContext, subscriberWatchlistContextEnabled(cfg, strings.TrimSpace(r.PathValue("tenant_id"))))
+		for _, row := range all {
 			d, _ := time.Parse("2006-01-02", row.TradeDate)
 			if d.Before(cutoff) {
 				continue
@@ -152,7 +222,11 @@ func registerMarketOpsEROCRoutes(mux *http.ServeMux, cfg RouterConfig) {
 			}
 			points = append(points, map[string]any{"trade_date": date, "series": series})
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"points": points, "research_only": true})
+		response := map[string]any{"points": points, "research_only": true}
+		if subscriberWatchlistContextEnabled(cfg, strings.TrimSpace(r.PathValue("tenant_id"))) {
+			response["watchlist_context"] = subscriberWatchlistContextResponse(watchlistContext)
+		}
+		writeJSON(w, http.StatusOK, response)
 	})
 }
 

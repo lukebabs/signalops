@@ -10,7 +10,7 @@ The options capture barrier found only three capture rows when 115 were required
 options capture barrier failed: captures=3 expected=115
 ```
 
-The run is correctly recorded as failed in `runtime/scheduled-jobs/marketops-daily-postclose.json`. No partial post-close analytical state was published.
+At the time, the run was recorded as failed in `runtime/scheduled-jobs/marketops-daily-postclose.json`. Since migration `000154_marketops_scheduled_job_statuses`, current operational scheduler status is stored in the dedicated MarketOps database and runtime JSON is fallback/debug evidence only. No partial post-close analytical state was published.
 
 ## Root cause
 
