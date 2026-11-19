@@ -2893,7 +2893,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 			writeError(w, http.StatusBadRequest, "missing_path", "tenant_id is required")
 			return
 		}
-		records, err := reader.ListMarketOpsAssetQuotes(r.Context(), storage.MarketOpsAssetQuoteFilter{TenantID: tenantID, UniverseGroup: strings.TrimSpace(r.URL.Query().Get("universe_group")), Limit: 200})
+		// Quote enrichment must cover the complete mutable MarketOps cohort. A
+		// 200-row cap silently dropped the tail of the 225-asset primary list,
+		// which made client-side sorting appear incomplete.
+		records, err := reader.ListMarketOpsAssetQuotes(r.Context(), storage.MarketOpsAssetQuoteFilter{TenantID: tenantID, UniverseGroup: strings.TrimSpace(r.URL.Query().Get("universe_group")), Limit: 5000})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "query_failed", "failed to list persisted quotes")
 			return
